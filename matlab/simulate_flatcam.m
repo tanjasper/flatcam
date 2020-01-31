@@ -1,0 +1,40 @@
+function [sim_fc, start_y, end_y, start_x, end_x] = simulate_flatcam(input_im, calib)
+% [sim_fc, start_y, end_y, start_x, end_x] = simulate_flatcam(input_im, calib)
+%   Simulate FlatCam capture using calibrated matrices
+%   FlatCam is calibrated for square scenes, so non-square images are
+%   padded. The coordinates of the original image in the padded image are
+%   given by start_y, end_y, start_x, end_x.
+%   Note: Noise is not included in the simulation
+%   input_im: input image
+%   calib: FlatCam calibration data (contains SVD of calibration matrices)
+
+fc_dim = 256;
+
+% Simulation
+if size(input_im,3) == 1 % turn grayscale into rgb format
+    input_im(:,:,2) = input_im(:,:,1);
+    input_im(:,:,3) = input_im(:,:,1);
+end
+% Resize by forcing larger dimension to be 256
+if size(input_im,1) > size(input_im,2)
+    resize_dim = [256 NaN];
+else
+    resize_dim = [NaN 256];
+end
+input_im = imresize(im2double(input_im), resize_dim);
+% Pad and remember start and endpoints of actual image
+start_y = floor((fc_dim-size(input_im,1))/2)+1;
+end_y = start_y + size(input_im,1) - 1;
+start_x = floor((fc_dim-size(input_im,2))/2)+1;
+end_x = start_x + size(input_im,2) - 1;
+orig_im = zeros(fc_dim,fc_dim,3);
+orig_im(start_y:end_y,start_x:end_x,:) = input_im;
+% Simulate FlatCam capture, rotate measurements, and add noise
+sim_fc = zeros(calib.cSize * 2);
+sim_fc(2:2:end,2:2:end) = imrotate(calib.P1r * orig_im(:,:,1) * calib.Q1r', -calib.angle, 'bilinear', 'crop');
+sim_fc(1:2:end,2:2:end) = imrotate(calib.P1gb * orig_im(:,:,2) * calib.Q1gb', -calib.angle, 'bilinear', 'crop');
+sim_fc(2:2:end,1:2:end) = imrotate(calib.P1gr * orig_im(:,:,2) * calib.Q1gr', -calib.angle, 'bilinear', 'crop');
+sim_fc(1:2:end,1:2:end) = imrotate(calib.P1b * orig_im(:,:,3) * calib.Q1b', -calib.angle, 'bilinear', 'crop');
+
+end
+
